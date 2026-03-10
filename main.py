@@ -181,5 +181,4 @@ COMMUNITY VOICE:
 @app.get("/")
 def root():
     return {"status": "Atlas Ya Desturi API is running"}
-```
 
