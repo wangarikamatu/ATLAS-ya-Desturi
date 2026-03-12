@@ -60,14 +60,32 @@ def retrieve_by_source(query, k=20):
     )
     docs = retriever.invoke(query)
     docs = [d for d in docs if is_useful_chunk(d.page_content)]
+
+    # Prioritize cultural data sources by sorting them to the top
+    def source_priority(doc):
+        source_type = doc.metadata.get("source_type", "unknown")
+        priority = {
+            "african_authored": 0,
+            "kenyan_cultural_institution": 1,
+            "kenyan_academic": 2,
+            "western_academic": 3,
+            "unknown": 4
+        }
+        return priority.get(source_type, 4)
+
+    docs.sort(key=source_priority)
+
+    # Only keep top 10 after sorting to reduce noise
+    docs = docs[:10]
+
     grouped = {}
     for doc in docs:
         source_type = doc.metadata.get("source_type", "unknown")
         if source_type not in grouped:
             grouped[source_type] = []
         grouped[source_type].append(doc)
-    return grouped
 
+    return grouped
 def build_context_from_group(docs, max_chars=2000):
     context = ""
     for doc in docs:
@@ -114,6 +132,7 @@ async def ask(body: Question):
     if has_enough_context(community_context) and has_enough_context(academic_context):
         prompt = f"""You are Atlas Ya Desturi, an African cultural education assistant.
 
+CRITICAL: Base your answer ONLY on the source content provided above. If the source content directly answers the question, use it. If you find yourself writing something not explicitly in the text, stop and say you don't have that information instead. Never invent facts, food names, or practices.
 STRICT RULES:
 - Only use information explicitly stated in the sources below
 - Do NOT invent, assume or fill gaps with outside knowledge
@@ -144,6 +163,8 @@ POSSIBLE BIASES:
         source_type_label = "academic sources only" if has_enough_context(academic_context) else "community sources only"
 
         prompt = f"""You are Atlas Ya Desturi, an African cultural education assistant.
+
+CRITICAL: Base your answer ONLY on the source content provided above. If the source content directly answers the question, use it. If you find yourself writing something not explicitly in the text, stop and say you don't have that information instead. Never invent facts, food names, or practices.
 
 STRICT RULES:
 - Only use information explicitly stated in the source below
